@@ -100,7 +100,8 @@ public class MagicMirror : MonoBehaviour
 
             // Detect faces
             OpenCvSharp.Rect[] faces = faceCascade.DetectMultiScale(
-                gray, 1.1, 10, HaarDetectionType.DoRoughSearch, Size.Zero);
+                gray, 1.3, 5, HaarDetectionType.ScaleImage, new Size(20, 20));
+                       
 
             bool faceFound = false;
 
@@ -117,13 +118,13 @@ public class MagicMirror : MonoBehaviour
                     Width = (int)(face.Width * 0.5),
                     Height = (int)(face.Height * 0.5)
                 };
-
+                                
                 using (Mat faceROI = new Mat(gray, face))
                 {
 
                     // Detect eyes in the faces
                     OpenCvSharp.Rect[] eyes = eyeCascade.DetectMultiScale(
-                        faceROI, 1.1, 2, HaarDetectionType.ScaleImage, new Size(30, 30));
+                        faceROI, 1.2, 5, HaarDetectionType.DoRoughSearch, new Size(10, 10));
 
                     // Render all detected faces
                     foreach (OpenCvSharp.Rect eye in eyes)
