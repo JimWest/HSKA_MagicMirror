@@ -8,15 +8,29 @@ using UnityEditor;
 public class MagicMirror : MonoBehaviour
 {
 
+    [Header("Basic settings")]
     public GameObject background;
     public Vector2 camResolution = new Vector2(640, 480);
+    public bool detectFaces = true;
+
+    [Header("Face detect settings")]
     public TextAsset cascadeFaceFile;
+    public float faceScale = 1.4f;
+    public int faceMinNeightbors = 5;
+    public HaarDetectionType faceDetectType = HaarDetectionType.ScaleImage;
+    public Vector2 faceSize = new Vector2(50, 50);
+
+    [Header("Eye detect settings")]
     public TextAsset cascadeEyeFile;
+    public float eyeScale = 1.5f;
+    public int eyeMinNeightbors = 5;
+    public HaarDetectionType eyeDetectType = HaarDetectionType.ScaleImage;
+    public Vector2 eyeSize = new Vector2(20, 20);
 
     VideoCapture capture;
     Material backgroundMaterial;
     CascadeClassifier faceCascade;
-    CascadeClassifier eyeCascade;
+    CascadeClassifier eyeCascade;    
 
     // Use this for initialization
     void Start()
@@ -43,6 +57,7 @@ public class MagicMirror : MonoBehaviour
         cascadePath = AssetDatabase.GetAssetPath(cascadeEyeFile);
         cascadePath = cascadePath.Remove(0, 7);
         eyeCascade = new CascadeClassifier(Application.dataPath + "/" + cascadePath);
+       
     }
 
     // Update is called once per frame
@@ -58,9 +73,10 @@ public class MagicMirror : MonoBehaviour
             Cv2.Flip(camImage, camImage, FlipMode.Y);
 
             // detect faces
-            Mat haarResult = DetectFace(camImage);
-            if (haarResult != null)
+            if (detectFaces)
             {
+                Mat haarResult = DetectFace(camImage);
+
                 // convert it to a Unity Texture2D
                 tex = OpenCvUtilities.MatToTexture2D(haarResult);
             }
@@ -68,6 +84,8 @@ public class MagicMirror : MonoBehaviour
             {
                 tex = OpenCvUtilities.MatToTexture2D(camImage);
             }
+
+
 
             // For testing: save the image
             //File.WriteAllBytes(Application.dataPath + "/../SavedScreen.png", tex.EncodeToPNG());
@@ -85,25 +103,34 @@ public class MagicMirror : MonoBehaviour
 
     void OnDestroy()
     {
-        capture.Release();
-        capture.Dispose();
+        if (capture != null)
+        {
+            capture.Release();
+            capture.Dispose();
+        }
+
+        if (faceCascade != null)
+            faceCascade.Dispose();
+
+        if (eyeCascade != null)
+            eyeCascade.Dispose();
+        
     }
 
     private Mat DetectFace(Mat src)
     {
         Mat result;
 
-        using (var gray = new Mat())
+        using (Mat gray = new Mat())
         {
+            Cv2.EqualizeHist(gray, gray);
+
             result = src.Clone();
             Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 
             // Detect faces
             OpenCvSharp.Rect[] faces = faceCascade.DetectMultiScale(
-                gray, 1.3, 5, HaarDetectionType.ScaleImage, new Size(20, 20));
-                       
-
-            bool faceFound = false;
+                gray, faceScale, faceMinNeightbors, faceDetectType, new Size(faceSize.x, faceSize.y));
 
             // Render all detected faces
             foreach (OpenCvSharp.Rect face in faces)
@@ -115,21 +142,20 @@ public class MagicMirror : MonoBehaviour
                 };
                 var faceAxes = new Size
                 {
-                    Width = (int)(face.Width * 0.5),
+                    Width = (int)(face.Width * 0.4),
                     Height = (int)(face.Height * 0.5)
                 };
-                                
+
                 using (Mat faceROI = new Mat(gray, face))
                 {
 
                     // Detect eyes in the faces
                     OpenCvSharp.Rect[] eyes = eyeCascade.DetectMultiScale(
-                        faceROI, 1.2, 5, HaarDetectionType.DoRoughSearch, new Size(10, 10));
-
-                    // Render all detected faces
+                        faceROI, eyeScale, eyeMinNeightbors, eyeDetectType, new Size(eyeSize.x, eyeSize.y));
+                    
+                    // Render all eyes
                     foreach (OpenCvSharp.Rect eye in eyes)
                     {
-                        faceFound = true;
                         var eyeCenter = new Point
                         {
                             X = (int)(face.X + eye.X + eye.Width * 0.5),
@@ -143,11 +169,11 @@ public class MagicMirror : MonoBehaviour
                         // draw ellipse at the eyes
                         Cv2.Ellipse(result, eyeCenter, eyeAxes, 0, 0, 360, new Scalar(0, 0, 255), 4);
                     }
+                    
                 }
-                
-                if (faceFound)
-                    // draw ellipse at the face
-                    Cv2.Ellipse(result, faceCenter, faceAxes, 0, 0, 360, new Scalar(255, 0, 255), 4);
+
+                // draw ellipse at the face
+                Cv2.Ellipse(result, faceCenter, faceAxes, 0, 0, 360, new Scalar(255, 0, 255), 4);
             }
         }
         return result;
